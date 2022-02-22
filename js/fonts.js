@@ -164,7 +164,7 @@ function reset_fonts() {
 	// glyphs
 	let r = ""
 	for (let i=0; i < fntCode.length; i++) {
-		let c = "u+"+ fntCode[i].substr(2)
+		let c = "u+"+ fntCode[i].slice(2)
 		r += "\n"+ c.padStart(7)
 	}
 	dom.ug10.innerHTML = fntHead + r
@@ -744,13 +744,12 @@ function get_unicode() {
 			dom.ug4.innerHTML = chash + r
 			dom.ug10.innerHTML = fntHead + display
 
-			// log
-			if (logExtra && isCanvas && isTM) {
-				r = ""
-				if (isBound) {r = "measuretext vs bounding\n"+ diffsb.join("\n")}
-				if (isClient && isClient !== isBound) {r += "measuretext vs clientrects\n"+ diffsc.join("\n")}
-				//if (r !== "") {console.debug(r)}
-			}
+			//debug
+			//r = ""
+			//if (isBound) {r = "measuretext vs bounding\n"+ diffsb.join("\n")}
+			//if (isClient && isClient !== isBound) {r += "measuretext vs clientrects\n"+ diffsc.join("\n")}
+			//if (r !== "") {console.debug(r)}
+
 			// perf/resolve
 			log_perf("unicode glyphs [fonts]",t0)
 			return resolve(res)
@@ -763,7 +762,7 @@ function get_unicode() {
 			// each char
 			for (let i=0; i < fntCode.length; i++) {
 				let	c = String.fromCodePoint(fntCode[i]),
-					cp = "u+"+ (fntCode[i]).substr(2)
+					cp = "u+"+ (fntCode[i]).slice(2)
 				display += "<br>"+ cp.padStart(7)
 				// each style
 				for (let j=0; j < styles.length; j++) {
