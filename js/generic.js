@@ -12,16 +12,14 @@ function count_decimals(value) {if(Math.floor(value) === value) return 0;return 
 
 function cleanFn(item, skipArray = false) {
 	// catch strings as strings, tidy undefined, empty strings
-	if (typeof item == "number" || typeof item == "bigint") { return item
+	if (typeof item === "number" || typeof item === "bigint") { return item
 	} else if (item == zU) {item = zUQ
-	} else if (item == "true") {item = "\"true\""
-	} else if (item == "false") {item = "\"false\""
-	} else if (item == "null") {item = "\"null\""
+	} else if (item == "true" || item == "false" || item == "null") {item = "\"" + item + "\""
 	} else if (!skipArray && Array.isArray(item)) {
 		item = !item.length ? "empty array" : "array"
 	} else if (item === undefined || item === true || item === false || item === null) {item += ""
 	} else if (!skipArray && item == "") {item = "empty string"
-	} else if (typeof item == "string") {
+	} else if (typeof item === "string") {
 		if (!isNaN(item*1)) {item = "\"" + item + "\""}
 	}
 	return item
@@ -58,7 +56,7 @@ function getElementProp(id, prop, pseudo, noBlock) {
 
 /*** HASH ***/
 
-function mini(str, call) {
+function mini(str, call, log = true) {
 	// https://stackoverflow.com/a/22429679
 	let t0; if (canPerf) {t0 = performance.now()}
 	const json = `${JSON.stringify(str)}`
@@ -67,7 +65,7 @@ function mini(str, call) {
 		hash = Math.imul(31, hash) + json.charCodeAt(i) | 0
 	}
 	let result = ('0000000' + (hash >>> 0).toString(16)).slice(-8)
-	if (logPerfMini) {
+	if (log && logPerfMini) {
 		let ms = (performance.now()-t0)
 		gPerfHash += ms
 		gPerfHashDetail.push(ms +" : mini : "+ call)
@@ -75,7 +73,20 @@ function mini(str, call) {
 	return result
 }
 
-function sha1(str, call) {
+function mini_sha1(str, call) {
+	let t0; if (canPerf) {t0 = performance.now()}
+	// use mini for speed, then sha1 for length
+	let ministr = mini(str, call, false)
+	str = sha1(ministr, call, false)
+	if (logPerfMiniSha1) {
+		let ms = (performance.now()-t0)
+		gPerfHash += ms
+		gPerfHashDetail.push(ms +" : both : "+ call)
+	}
+	return str
+}
+
+function sha1(str, call, log = true) {
 	let t0; if (canPerf) {t0 = performance.now()}
 	for (var blockstart=0,
 		i = 0,
@@ -106,7 +117,7 @@ function sha1(str, call) {
 		for(i=5;i;) H[--i] = H[i] + A[i] | 0;
 	}
 	for(str='';i<40;)str += (H[i>>3] >> (7-i++%8)*4 & 15).toString(16);
-	if (logPerfSha1) {
+	if (log && logPerfSha1) {
 		let ms = (performance.now()-t0)
 		gPerfHash += ms
 		gPerfHashDetail.push(ms +" : sha1 : "+ call)
@@ -308,9 +319,9 @@ const get_isEngine = () => new Promise(resolve => {
 				let fnResult = "unknown"
 				if (i == 0) {fnResult = cbrt(Math.PI) // polyfill
 				} else if (i == 1) {fnResult = Math.log10(7*Math.LOG10E)
-				} else if (i == 2) {fnResult = Math.log10(2*Math.SQRT1_2)
+				} else if (i == 2) {fnResult = Math.log10(2*Math.SQRT1_2) // cydec BS
 				} else if (i == 3) {fnResult = Math.acos(0.123)
-				} else if (i == 4) {fnResult = Math.acosh(Math.SQRT2)
+				} else if (i == 4) {fnResult = Math.acosh(Math.SQRT2) // cydec BS
 				} else if (i == 5) {fnResult = Math.atan(2)
 				}
 				res.push(fnResult)
@@ -327,6 +338,7 @@ const get_isEngine = () => new Promise(resolve => {
 		} else if (hash == "225f4a61") {isEngine = "gecko"; bFF = true
 		} else if (hash == "cb89002a") {isEngine = "gecko"; bFF = true
 		}
+		if (isEngine == "") {console.log(res.join())}
 
 		if (isEngine == "gecko") {
 			// check for PM28+ : fails 55 (1351795) but passes 57 (1378342)
@@ -336,7 +348,7 @@ const get_isEngine = () => new Promise(resolve => {
 			}
 		}
 		if (bFF) {isFFyes.push("math")} else {isFFno.push("math")}
-		log_perf("math [isFF]",t0,"",bFF)
+		log_perf("math [isFF]",t0,"",bFF +" |"+ hash)
 		// harden isEngine
 		if (isEngine == "") {
 			if (isFF) {isEngine = "gecko"} else if ("chrome" in window) {isEngine = "blink"}
@@ -615,8 +627,7 @@ const get_isVer = () => new Promise(resolve => {
 		if (isFFLegacy) return 59
 			// ^ we can skip < FF60 legacy checks now
 			// note: we can skip non-gecko checks: this only runs if isFF
-		if ("pdfViewerEnabled" in navigator) return 99 // 1720353
-			// ^ ext fuckable
+		try {newFn("class A { #x; h(o) { return !#x in o; }}")} catch(e) {if (e.message.length == 72) return 99} // 1711715 + 1756204
 		if (HTMLElement.prototype.hasOwnProperty("outerText")) return 98 // 1709790
 		if ("function" === typeof AbortSignal.prototype.throwIfAborted) return 97 // 1745372
 		if ("undefined" === typeof Object.toSource
@@ -719,6 +730,7 @@ const get_navKeys = () => new Promise(resolve => {
 			"hardwareConcurrency","language","languages","mimeTypes","onLine","plugins",
 		]
 		if (isFF) {
+			if (isVer > 98) {expectedKeys.push("pdfViewerEnabled")}
 			// constructor is always last
 			// track added keys
 			lastKeyIndex = keys.indexOf("constructor")
@@ -890,7 +902,7 @@ function tidyName(name) {
 
 function showDetail(name) {
 	let data = sDetail[name],
-		hash = sha1(data.join())
+		hash = mini_sha1(data.join())
 	name = tidyName(name)
 	let n = name.indexOf(" "),
 		section = name.substring(0,n).toUpperCase(),
@@ -902,7 +914,7 @@ function showMetrics(type) {
 	if (type == "gDetail") {
 		for (let name in gDetail) {
 			let data = gDetail[name],
-				hash = sha1(data.join())
+				hash = mini_sha1(data.join())
 			name = tidyName(name)			
 			let n = name.indexOf(" "),
 				section = name.substring(0,n).toUpperCase(),
@@ -1058,6 +1070,21 @@ function log_perf(str, time1, time2, extra) {
 	}
 }
 
+function log_section_hash(name) {
+	// section hash
+	let data = sData[name]
+	let hash = sha1(data.join(), name +" section result")
+	let sHash = hash + buildButton("0", name, data.length +" metric"+ (data.length > 1 ? "s" : ""), "showMetrics", "btns")
+	if (name == "canvas" || name == "storage") {if (isFile) {sHash += note_file}
+	} else if (name == "ua") {sHash += (isFF ? " [spoofable + detectable]" : "")
+	} else if (name == "feature") {sHash += (isFF ? " [unspoofable?]" : "")}
+	document.getElementById(name +"hash").innerHTML = sHash
+	// global run
+	if (gRun) {
+		gData.push([name +":"+ hash, data])
+	}
+}
+
 function log_section(name, time1, data) {
 	let t0; if (canPerf) {t0 = performance.now(); time1 = Math.round(t0-time1).toString()}
 
@@ -1087,7 +1114,6 @@ function log_section(name, time1, data) {
 	// DATA
 	if (Array.isArray(data)) {
 		data.sort()
-		let hash = sha1(data.join(), name +" section result")
 		// SANITY
 		if (data.length == 0) {
 			gCheck.push("#section "+ name +": data array is empty")
@@ -1121,25 +1147,25 @@ function log_section(name, time1, data) {
 
 		// SECTION
 		sData[name] = data
-		let sHash = hash + buildButton("0", name, data.length +" metric"+ (data.length > 1 ? "s" : ""), "showMetrics", "btns")
-		if (name == "canvas" || name == "storage") {if (isFile) {sHash += note_file}}
-		if (name == "ua") {sHash += (isFF ? " [spoofable + detectable]" : "")}
-		if (name == "feature") {sHash += (isFF ? " [unspoofable?]" : "")}
-		document.getElementById(name +"hash").innerHTML = sHash
 		if (canPerf) {document.getElementById("perf"+ name).innerHTML = " "+ (isPerf ? time1 : "xxx") +" ms"}
-		if (!gRun) {outputPostSection(name)} // trigger nonFP
-
+		if (!gRun) {
+			log_section_hash(name)
+			outputPostSection(name) // trigger nonFP
+		}
 		// GLOBAL
 		if (gRun) {
 			gCount++
-			gData.push([name +":"+ hash, data])
 			// FINISH
 			if (gCount == gCountExpected) {
 				// temp
 				if (logPerfHash !== "") {
-					console.log("HASH STATS: ["+ gPerfHashDetail.length +" times | "+ gPerfHash +" ms]\n - " + gPerfHashDetail.join("\n - "))
-					//console.log("HASH STATS: ["+ gPerfHashDetail.length +" times | "+ gPerfHash +" ms]")
+					console.log("HASH STATS: ["+ gPerfHashDetail.length +" times | "
+						+ gPerfHash +" ms]\n - " + gPerfHashDetail.join("\n - ")
+					)
 				}
+				// build section hashes and propagate gData
+				const sDataNames = Object.keys(sData)
+				sDataNames.forEach(function(name) {log_section_hash(name)})
 				// metric count
 				let metricCount = 0
 				for (let i=0; i < gData.length; i++) {
@@ -1390,6 +1416,7 @@ function outputSection(id, cls) {
 		if (gRun && canPerf) {
 			logPerfMini = (logPerfHash == "all" || logPerfHash == "mini")
 			logPerfSha1 = (logPerfHash == "all" || logPerfHash == "sha1")
+			logPerfMiniSha1 = (logPerfHash == "all" || logPerfHash == "minisha1")
 		} else {
 			logPerfMini = false; logPerfSha1 = false
 		}
